@@ -38,7 +38,7 @@ def EpollServer (address):
 
     Client_SD = []
     Server_Response = []
-    server_SD = server.fileno()
+    server_SD = server.fileno() #get the server socket descriptor 
 
     #Logging Variables
     DataTransfered = []
@@ -53,6 +53,7 @@ def EpollServer (address):
 
 
     for i in range(THREADNUM):
+        # Create mutiple epoll objects for the threads
         temp_epoll = select.epoll()
         epolls.append(temp_epoll)
         tmp_Client_SD = {}
@@ -68,14 +69,14 @@ def EpollServer (address):
         tmp_IP = {}
         IpAddr.append(tmp_IP)
         # set thread to manage data collection and logging
-        t = Thread(target=handle_connection, args=(server, Client_SD[i], Client_req[i], Server_Response[i], epolls[i], DataTransfered[i], RequestCounts[i], IpAddr[i]))
+        t = Thread(target=handle_connection, args=(Client_SD[i], Client_req[i], Server_Response[i], epolls[i], DataTransfered[i], RequestCounts[i], IpAddr[i]))
         workers.append(t)
 
-    for i in workers:
-        i.start()
+    #start the threads
+    for t in workers:
+        t.start()
 
     iteration = 0
-    server_SD = server.fileno()
     while True:
         events = epollmain.poll(1)
         for sockdes, event in events:
@@ -85,11 +86,11 @@ def EpollServer (address):
 
 #----------------------------------------------------------------------------------------------------------------
 #handle connection
-def handle_connection (server, Client_SD, Client_Reqs, Server_Response, epoll, DataTransfered, RequestCounts, IpAddr):
+def handle_connection (Client_SD, Client_Reqs, Server_Response, epoll, DataTransfered, RequestCounts, IpAddr):
     while True:
         events = epoll.poll(1)
         for sockdes, event in events:
-            if sockdes in Client_SD: #make sure the socket is connected to the client
+            if sockdes in Client_SD:
                 if event & select.EPOLLIN:  #receive data from client
                     Receive_Message (sockdes, Client_Reqs, Client_SD, Server_Response, epoll, DataTransfered, RequestCounts, IpAddr)
                 elif event & select.EPOLLOUT: #send data to client
