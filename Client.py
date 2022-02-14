@@ -9,16 +9,14 @@ import time
 
 import logging
 
-from flask import request
-logging.getLogger().handlers.clear()
 
 #global variables
+LOGDIR = "./Output/Client/"
 workers = []
-thread_count = 1000
+thread_count = 10000
 bufferSize = 1025
-requestCount = 50
+requestCount = 10
 
-logging.basicConfig(filename="Clientout"+str(thread_count)+".csv",level=logging.DEBUG, format='%(message)s')
 #----------------------------------------------------------------------------------------------------------------
 
 def clientThead(server_address, requestCount, message, thread_id):
@@ -38,20 +36,17 @@ def clientThead(server_address, requestCount, message, thread_id):
 
     # start sending requests
     for i in range(requestCount):
-        start = time.time()
-        total_bytes = sys.getsizeof(message)
         sock.send(message) #sends the message to the server
         data = sock.recv(1024) #receives the message from the server
-        end = time.time()
-        total_delay = end - start
-        total_requests += 1
-    sock.send(b'quit\n')
+        total_bytes += sys.getsizeof(data) #saves total amount of bytes received
+        total_requests += 1 #saves total amount of requests sent   
+    sock.send(b'quit\n') #sends the quit message to the server
     duration_end = time.time()
     total_duration = duration_end - start_time
-    average_delay = total_delay / total_requests
+    average_delay = total_duration / total_requests
 
     #recording results to log
-    logging.info("%d, %d, %d, %f, %f, %f, %f" % (thread_id, total_requests, total_bytes, total_duration, total_delay, total_bytes/total_duration, average_delay))
+    logging.info("%d, %d, %d, %f, %f, %f" % (thread_id, total_requests, total_bytes, total_duration, total_bytes/total_duration, average_delay))
     # sock.close()
 
 def main(address, port):
@@ -66,7 +61,7 @@ def main(address, port):
         workers.append(t)
 
     for t in workers:
-        t.join()
+        t.join()   # wait for all threads to finish before closing the program
     
 
 if __name__ == "__main__":
@@ -74,5 +69,11 @@ if __name__ == "__main__":
     if len(sys.argv) != 3:
         print('usage: %s <address> <port>' % sys.argv[0])
         sys.exit(1)
-    logging.info("Thread, Requests, Bytes, Duration, Delay, MB/s, Average Delay")
+    #create logging directory if it doesn't exist
+    if not os.path.exists(LOGDIR):
+        os.makedirs(LOGDIR)
+    #create log file
+    logging.getLogger().handlers.clear()
+    logging.basicConfig(filename=LOGDIR+str(thread_count)+".csv",level=logging.DEBUG, format='%(message)s')
+    logging.info("Thread, Requests, Bytes, Duration, MB/s, Average Delay")
     main(sys.argv[1], int(sys.argv[2]))
