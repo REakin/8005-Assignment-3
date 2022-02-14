@@ -5,15 +5,16 @@ from __future__ import print_function
 from contextlib import contextmanager
 import socket
 import select
+import sys
 from threading import Thread
 from xmlrpc.client import Server
-
+import time
+import os
 
 #Logging imports
 import logging
-logging.getLogger().handlers.clear()
-logging.basicConfig(filename='Results.txt', level=logging.DEBUG, format='%(asctime)s %(message)s')
 
+LOGDIR = "./Output/Server/"
 ServerPort = 8000   # Listening port
 MAXCONN = 10000        # Maximum connections
 BUFLEN = 1024        # Max buffer size
@@ -85,8 +86,6 @@ def EpollServer (address):
 #----------------------------------------------------------------------------------------------------------------
 #handle connection
 def handle_connection (server, Client_SD, Client_Reqs, Server_Response, epoll, DataTransfered, RequestCounts, IpAddr):
-    server_SD = server.fileno()
-
     while True:
         events = epoll.poll(1)
         for sockdes, event in events:
@@ -94,7 +93,7 @@ def handle_connection (server, Client_SD, Client_Reqs, Server_Response, epoll, D
                 if event & select.EPOLLIN:  #receive data from client
                     Receive_Message (sockdes, Client_Reqs, Client_SD, Server_Response, epoll, DataTransfered, RequestCounts, IpAddr)
                 elif event & select.EPOLLOUT: #send data to client
-                    Echo_Response (sockdes, Client_SD, Server_Response, epoll, DataTransfered, RequestCounts)
+                    Echo_Response (sockdes, Client_SD, Server_Response, epoll, DataTransfered)
 
 #----------------------------------------------------------------------------------------------------------------
 # Process Client Connections
@@ -145,14 +144,13 @@ def Receive_Message (sockdes, Client_Reqs, Client_SD, Server_Response, epoll, Da
         Client_Reqs[sockdes] = ''
 #----------------------------------------------------------------------------------------------------------------
 # Send a response to the client
-def Echo_Response (sockdes, Client_SD, Server_Response, epoll, DataTransfered, RequestsCount):
+def Echo_Response (sockdes, Client_SD, Server_Response, epoll, DataTransfered):
     data = Server_Response[sockdes].encode()
-
+    DataTransfered[sockdes] += sys.getsizeof(data)
     byteswritten = Client_SD[sockdes].send(data)
-
     Server_Response[sockdes] = Server_Response[sockdes][byteswritten:]
     epoll.modify(sockdes, select.EPOLLIN)
-    print ("Response Sent")
+    # print ("Response Sent")
 
 #----------------------------------------------------------------------------------------------------------------
 # Use context manager to free socket resources upon termination
@@ -181,6 +179,12 @@ def epollcontext (*args, **kwargs):
 # Start the epoll server & Process keyboard interrupt CTRL-C
 if __name__ == '__main__':
     try:
+        #create logging directory
+        if not os.path.exists(LOGDIR):
+            os.makedirs(LOGDIR)
+        #create log file
+        logging.getLogger().handlers.clear()
+        logging.basicConfig(filename=LOGDIR+str(time.time()), level=logging.DEBUG, format='%(asctime)s %(message)s')
         EpollServer (("0.0.0.0", ServerPort))
     except KeyboardInterrupt as e:
         print("Server Shutdown")
